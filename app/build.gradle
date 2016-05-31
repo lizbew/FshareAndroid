@@ -17,6 +17,11 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    useLibrary 'org.apache.http.legacy'
+    packagingOptions {
+        exclude 'META-INF/DEPENDENCIES'
+    }
 }
 
 dependencies {
@@ -25,4 +30,13 @@ dependencies {
     compile 'com.android.support:appcompat-v7:23.3.0'
     compile 'org.fourthline.cling:cling-core:2.1.1-SNAPSHOT'
     //compile 'org.fourthline.cling:cling-support:2.1.1-SNAPSHOT'
+    compile 'org.eclipse.jetty:jetty-server:8.1.8.v20121106'
+    compile 'org.eclipse.jetty:jetty-servlet:8.1.8.v20121106'
+    compile 'org.eclipse.jetty:jetty-client:8.1.8.v20121106'
+    compile 'com.android.volley:volley:1.0.0'
+
+    compile (group: 'org.apache.httpcomponents' , name: 'httpmime' , version: '4.3.3') {
+       exclude module: 'org.apache.httpcomponents:httpclient'
+    }
+    compile group:'org.apache.httpcomponents', name:'httpcore', version:'4.3.3'
 }
