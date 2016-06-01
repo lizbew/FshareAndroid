@@ -5,13 +5,18 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.preference.PreferenceManager;
 import android.provider.OpenableColumns;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -36,17 +41,24 @@ import org.fourthline.cling.registry.Registry;
 import java.io.InputStream;
 
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SharedPreferences.OnSharedPreferenceChangeListener
+, View.OnClickListener {
     private final static String TAG = MainActivity.class.getSimpleName();
 
     private ArrayAdapter<DeviceDisplay> listAdapter;
     private BrowseRegistryListener registryListener = new BrowseRegistryListener();
     private AndroidUpnpService upnpService;
 
+    private SharedPreferences prefs;
+
     private Uri mReceivedImgUri;
 
     private TextView tv1;
     private ListView mListView;
+
+    private String prefUploadUrl;
+
+    Button buttonSend;
 
     private ServiceConnection serviceConnection = new ServiceConnection() {
 
@@ -92,6 +104,10 @@ public class MainActivity extends AppCompatActivity {
 
         tv1 = (TextView)findViewById(R.id.textView2);
 
+        prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        prefs.registerOnSharedPreferenceChangeListener(this);
+        prefUploadUrl = prefs.getString("upload_url", "");
+
         getApplicationContext().bindService(
                 new Intent(this, AndroidUpnpServiceImpl.class),
                 serviceConnection,
@@ -100,35 +116,14 @@ public class MainActivity extends AppCompatActivity {
 
         Button buttonSearch = (Button)findViewById(R.id.button_search);
         if (buttonSearch != null) {
-            buttonSearch.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Log.d(TAG, "Search button clicked");
-                    if (MainActivity.this.upnpService != null) {
-                        Log.d(TAG, " - Triggered UPnP search.");
-                        MainActivity.this.upnpService.getControlPoint().search(new STAllHeader());
-                    }
-                }
-            });
+            buttonSearch.setOnClickListener(this);
         }
 
-        Button buttonSend = (Button)findViewById(R.id.button_send);
+        buttonSend = (Button)findViewById(R.id.button_send);
         if (buttonSend != null) {
-            buttonSend.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (mReceivedImgUri != null) {
-                        MainActivity.this.uploadToFshare(mReceivedImgUri);
-                    } else {
-                        Toast.makeText(MainActivity.this,
-                                "NO Image received",
-                                Toast.LENGTH_LONG).show();
-                    }
-                }
-            });
+            buttonSend.setOnClickListener(this);
+            buttonSend.setEnabled(false);
         }
-
-
         // Get intent, action and MIME type
         Intent intent = getIntent();
         String action = intent.getAction();
@@ -140,6 +135,22 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.action_settings:
+                startActivity(new Intent(this, SettingsActivity.class));
+                break;
+        }
+        return false;
     }
 
     @Override
@@ -156,6 +167,7 @@ public class MainActivity extends AppCompatActivity {
         Uri imageUri = (Uri) intent.getParcelableExtra(Intent.EXTRA_STREAM);
         if (imageUri != null) {
             mReceivedImgUri = imageUri;
+            buttonSend.setEnabled(true);
 
             // Update UI to reflect image being shared
             Log.d(TAG, "Received file share " + imageUri.toString());
@@ -164,6 +176,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void uploadToFshare(Uri imgUri) {
+        //String url = "http://192.168.1.102:8036/upload";
+        String url = prefUploadUrl;
+        if (TextUtils.isEmpty(url)) {
+            Toast.makeText(this, "No UploadUrl in Settings.", Toast.LENGTH_LONG).show();
+            return;
+        }
+
         final ProgressDialog loading = ProgressDialog.show(this, "Uploading", "Please waiting..",
                 false, false);
 
@@ -193,27 +212,57 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        String url = "http://192.168.1.102:8036/upload";
         // Request a string response from the provided URL.
         MultipartRequest uploadRequest = new MultipartRequest(url, inputStream, name, size,
                 new Response.Listener<String>() {
                     @Override
                     public void onResponse(String response) {
+                        loading.dismiss();
                         // Display the first 500 characters of the response string.
                         //mTextView.setText("Response is: "+ response.substring(0,500));
                         Log.d(TAG, "Volley callback,  Response is: " + response);
-                        loading.dismiss();
+                        Toast.makeText(MainActivity.this,"Upload Completed.", Toast.LENGTH_LONG).show();
+
                     }
                 }, new Response.ErrorListener() {
                     @Override
                     public void onErrorResponse(VolleyError error) {
-                        //mTextView.setText("That didn't work!");
-                        Log.d(TAG, "Volley callback,  error ");
                         loading.dismiss();
+                        //mTextView.setText("That didn't work!");
+                        Log.d(TAG, "Volley callback,  error " + error);
+                        Toast.makeText(MainActivity.this,"Upload Error.", Toast.LENGTH_LONG).show();
                     }
         }) ;
 
         VolleyQueueSingleton.getInstance(MainActivity.this).addToRequestQueue(uploadRequest);
+    }
+
+    @Override
+    public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+        prefUploadUrl = prefs.getString("upload_url", "");
+    }
+
+    @Override
+    public void onClick(View v) {
+
+        switch (v.getId()) {
+            case R.id.button_search:
+                Log.d(TAG, "Search button clicked");
+                if (this.upnpService != null) {
+                    Log.d(TAG, " - Triggered UPnP search.");
+                    this.upnpService.getControlPoint().search(new STAllHeader());
+                }
+                break;
+            case R.id.button_send:
+                if (mReceivedImgUri != null) {
+                    this.uploadToFshare(mReceivedImgUri);
+                } else {
+                    Toast.makeText(this,
+                            "NO Image received",
+                            Toast.LENGTH_LONG).show();
+                }
+                break;
+        }
     }
 
     protected class BrowseRegistryListener extends DefaultRegistryListener {

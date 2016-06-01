@@ -1,4 +1,8 @@
 <resources>
     <string name="app_name">FshareAndroid</string>
     <string name="deviceDetailsNotYetAvailable">deviceDetailsNotYetAvailable</string>
+    <string name="settings_upload_server">Upload Server</string>
+    <string name="settings_upload_url">Upload URL</string>
+    <string name="settings_upload_param_name">Upload File Field</string>
+    <string name="action_settings">Settings</string>
 </resources>
